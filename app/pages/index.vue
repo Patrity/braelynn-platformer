@@ -3,7 +3,7 @@
 const links = ref([
   {
     label: 'Play Now!',
-    to: '/getting-started',
+    to: '/play',
     icon: 'i-heroicons-play-circle',
   },
   {
