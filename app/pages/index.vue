@@ -17,12 +17,12 @@ const links = ref([
 </script>
 
 <template>
-    <UPageHero title="Braelynn's Game" 
-        description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec orci urna, feugiat eget tempor id, 
-        elementum ac diam. In sollicitudin, metus vel ultricies consequat, orci eros vehicula arcu, vel efficitur magna 
-        mi sit amet lectus. Cras eu tincidunt urna, quis interdum massa. Integer ut arcu metus. Duis ultricies lectus 
-        dui, a mollis tortor venenatis eu."
+    <UPageHero title="School Escape" 
+        description="School escape is a fun, educational, and interactive learning game that incorperates fractions and percentages by forcing the player to learn about risk versus reward."
         :links
-     />
+        orientation="horizontal"
+     >
+     <img src="~/assets/hero.png" alt="School Escape" class="" />
+     </UPageHero>
 
 </template>

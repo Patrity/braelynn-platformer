@@ -28,7 +28,7 @@ const items = computed(() => [{
 <template>
     <UHeader>
         <template #title>
-            <h1 class="text-2xl font-bold text-pink-600 dark:text-pink-400">Braelynn</h1>
+            <h1 class="text-2xl font-bold text-pink-600 dark:text-pink-400">Game On!</h1>
         </template>
         <UNavigationMenu :items="items" />
         <template #right>
