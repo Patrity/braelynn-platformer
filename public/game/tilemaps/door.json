@@ -1,0 +1,104 @@
+{
+	"textures": [
+		{
+			"image": "door.png",
+			"format": "RGBA8888",
+			"size": {
+				"w": 50,
+				"h": 350
+			},
+			"scale": 1,
+			"frames": [
+				{
+					"filename": "Door1-0.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 48,
+						"h": 86
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 1,
+						"y": 1,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "Door1-1.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 48,
+						"h": 86
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 48,
+						"h": 86
+					},
+					"frame": {
+						"x": 1,
+						"y": 89,
+						"w": 48,
+						"h": 86
+					}
+				},
+				{
+					"filename": "Door1-2.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 48,
+						"h": 85
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 48,
+						"h": 85
+					},
+					"frame": {
+						"x": 1,
+						"y": 177,
+						"w": 48,
+						"h": 85
+					}
+				},
+				{
+					"filename": "Door1-3.png",
+					"rotated": false,
+					"trimmed": false,
+					"sourceSize": {
+						"w": 48,
+						"h": 85
+					},
+					"spriteSourceSize": {
+						"x": 0,
+						"y": 0,
+						"w": 48,
+						"h": 85
+					},
+					"frame": {
+						"x": 1,
+						"y": 264,
+						"w": 48,
+						"h": 85
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "https://www.codeandweb.com/texturepacker",
+		"version": "3.0",
+		"smartupdate": "$TexturePacker:SmartUpdate:76072c546c6339c497ac2f544ac39c7a:3c28d752ba009bcc4ee8f50e26c685d0:2a34754d8ab80f40243b52c06ba4cba5$"
+	}
+}

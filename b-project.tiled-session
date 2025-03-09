@@ -1,0 +1,180 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "success.tmx",
+    "expandedProjectPaths": [
+        ".",
+        "tilesets"
+    ],
+    "file.lastUsedOpenFilter": "All Files (*)",
+    "fileStates": {
+        "": {
+            "scaleInDock": 1,
+            "scaleInEditor": 2.3641
+        },
+        "#A4": {
+            "scaleInDock": 1
+        },
+        "#A5": {
+            "scaleInDock": 1
+        },
+        "#Door1": {
+            "scaleInDock": 1
+        },
+        "#Inside_C": {
+            "scaleInDock": 1
+        },
+        "failure.tmx": {
+            "scale": 2,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 64.25,
+                "y": 122.75
+            }
+        },
+        "failure.tmx#A4": {
+            "scaleInDock": 1
+        },
+        "failure.tmx#A5": {
+            "scaleInDock": 1
+        },
+        "failure.tmx#Inside_B": {
+            "scaleInDock": 1
+        },
+        "failure.tmx#Inside_C": {
+            "scaleInDock": 1
+        },
+        "start.tmx": {
+            "scale": 2.2073,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 348.6159561455171,
+                "y": 199.11203733067546
+            }
+        },
+        "start.tmx#A4": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1.8037,
+            "scaleInEditor": 2.3641
+        },
+        "start.tmx#A5": {
+            "scaleInDock": 3.9674
+        },
+        "start.tmx#Door1": {
+            "scaleInDock": 1
+        },
+        "start.tmx#Inside_A": {
+            "scaleInDock": 1
+        },
+        "start.tmx#Inside_B": {
+            "scaleInDock": 1
+        },
+        "start.tmx#Inside_C": {
+            "scaleInDock": 1
+        },
+        "start.tmx#Inside_D": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "start.tmx#Inside_E": {
+            "scaleInDock": 1
+        },
+        "start.tmx#dungeon": {
+            "dynamicWrapping": true,
+            "scaleInEditor": 1
+        },
+        "success.tmx": {
+            "scale": 1.7977,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 263.3921121432942,
+                "y": 320.68754519664014
+            }
+        },
+        "success.tmx#A4": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1
+        },
+        "success.tmx#A5": {
+            "scaleInDock": 1
+        },
+        "success.tmx#Door1": {
+            "scaleInDock": 1
+        },
+        "success.tmx#Inside_A": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "success.tmx#Inside_B": {
+            "scaleInDock": 1.3636
+        },
+        "success.tmx#Inside_C": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "success.tmx#Inside_D": {
+            "scaleInDock": 1.2804
+        },
+        "success.tmx#Inside_E": {
+            "scaleInDock": 1
+        },
+        "tilesets/A4.tsx": {
+            "dynamicWrapping": true,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "tilesets/A5.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 2
+        },
+        "tilesets/Door1.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "tilesets/Inside_A.tsx": {
+            "scaleInDock": 1.1008
+        },
+        "tilesets/Inside_B.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "tilesets/Inside_D.tsx": {
+            "scaleInDock": 1
+        },
+        "tilesets/Inside_E.tsx": {
+            "scaleInDock": 1
+        }
+    },
+    "last.exportedFilePath": "/Users/tony/Documents/GitHub/braelynn-platformer/public/game/tilemaps",
+    "last.externalTilesetPath": "/Users/tony/Documents/GitHub/braelynn-platformer/tilesets",
+    "last.imagePath": "/Users/tony/Documents/GitHub/braelynn-platformer/public/game/Bonus/Animated",
+    "map.height": 16,
+    "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 16,
+    "map.tileWidth": 16,
+    "map.width": 16,
+    "openFiles": [
+        "start.tmx",
+        "success.tmx"
+    ],
+    "project": "b-project.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "tilesets/Door1.tsx",
+        "tilesets/Inside_B.tsx",
+        "success.tmx",
+        "tilesets/A4.tsx",
+        "start.tmx"
+    ],
+    "tileset.embedInMap": true,
+    "tileset.lastUsedFilter": "Tiled tileset files (*.tsx *.xml)",
+    "tileset.tileSize": {
+        "height": 16,
+        "width": 16
+    },
+    "tileset.type": 0
+}
