@@ -160,14 +160,14 @@ onUnmounted(() => {
       </div>
 
       <div v-if="!isClient" class="loading">Loading game...</div>
-      <div class="mt-4 mx-auto flex flex-row justify-between gap-4">
+    </client-only>
+  </div>
+      <div class="mt-4 mx-auto flex flex-row justify-between gap-4 w-[800px]">
         <UButton @click="isFractions = !isFractions" :icon="isFractions ? 'i-mdi-fraction-one-half' : 'i-mdi-percent'"
           size="xl" />
         <HowToPlay />
         <UButton @click="isDebug = !isDebug" :icon="isDebug ? 'i-mdi-bug-stop' : 'i-mdi-bug-play'" size="xl" />
       </div>
-    </client-only>
-  </div>
 </template>
 
 <style scoped>
@@ -212,7 +212,7 @@ onUnmounted(() => {
   color: white;
   font-size: 24px;
   text-align: center;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(249, 130, 255, 0.8);
   padding: 20px 40px;
   border-radius: 10px;
   border: 2px solid white;
