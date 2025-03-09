@@ -16,6 +16,11 @@ const items = computed(() => [{
     to: '/about',
     icon: 'i-heroicons-book-open',
     active: route.path.startsWith('/about')
+}, {
+    label: 'Code',
+    to: 'https://github.com/Patrity/braelynn-platformer/',
+    target: '_blank',
+    icon: 'i-mdi-github'
 }
 ])
 </script>
