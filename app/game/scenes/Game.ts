@@ -1,18 +1,18 @@
 import Phaser from 'phaser'
 import type { DoorData } from '../model/Objects'
+import { debugDraw } from '~/game/util'
 
 export class Game extends Phaser.Scene {
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private player!: Phaser.Physics.Arcade.Sprite
+
+  // Track room positions
+  private currentRoomY: number = 0
+  private currentRoomX: number = 0
+  private rooms: Array<{ level: string, y: number, x: number }> = []
   private doors: DoorData[] = []
   private activeDoor: DoorData | null = null
-  private infoText!: Phaser.GameObjects.Text
-  private scoreText!: Phaser.GameObjects.Text
-  private coordsText!: Phaser.GameObjects.Text
-  private playerScore: number = 0
-  private isDead: boolean = false
-
-  // Track current map/level
+  private doorSelectionActive: boolean = false
+  private interactionDistance: number = 60
   private currentLevel: string = 'start'
   private levelMaps: { [key: string]: string } = {
     start: 'start',
@@ -20,17 +20,47 @@ export class Game extends Phaser.Scene {
     failure: 'failure'
   }
 
-  // Flag to prevent multiple door selections
-  private doorSelectionActive: boolean = false
+  // Text elements
+  private infoText!: Phaser.GameObjects.Text
+  private scoreText!: Phaser.GameObjects.Text
+  private debugText!: Phaser.GameObjects.Text
 
-  // Interaction distance (increased to make it easier to interact)
-  private interactionDistance: number = 60
+  // Keyboard input
+  private eKey!: Phaser.Input.Keyboard.Key // Interact
+  private tKey!: Phaser.Input.Keyboard.Key // Debug door output
+  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
 
-  // Track room positions
-  private currentRoomY: number = 0
-  private currentRoomX: number = 0
-  private roomHeight: number = 360 // Default room height
-  private rooms: Array<{ level: string, y: number, x: number }> = []
+  // Misc game state
+  private playerScore: number = 0
+  private isDead: boolean = false
+  private isDebugMode: boolean = false
+  private isFractionsMode: boolean = true
+  private fps: number = 0 
+
+  //function to toggle debug mode externally
+  setDebugMode(isDebug: boolean) {
+    this.isDebugMode = isDebug
+    this.physics.world.debugGraphic.setVisible(isDebug)
+    if (this.debugText) {
+      this.debugText.setVisible(isDebug)
+    }
+    console.log(`Debug mode set to: ${isDebug}`)
+  }
+
+  //function to toggle fractions mode externally
+  setFractions(isFractions: boolean) {
+    this.isFractionsMode = isFractions
+    if (this.doors && this.doors.length > 0) {
+      for (const door of this.doors) {
+        if (door.text && isFractions) {
+          door.text.setText(`${door.numerator}/${door.denominator}\n${door.reward} points`)
+        } else {
+          door.text?.setText(`${door.chance}%\n${door.reward} points`)
+        }
+      }
+    }
+    console.log(`Fractions mode set to: ${isFractions}`)
+  }
 
   constructor() {
     super({ key: 'Game' })
@@ -41,13 +71,19 @@ export class Game extends Phaser.Scene {
   }
 
   create() {
+    this.rooms = []
+    
+    this.physics.world.debugGraphic.setVisible(false)
 
-    // Add R key for reset
     this.input.keyboard!.addKey('R').on('down', () => {
+      this.clearDoors()
       this.resetGame()
     })
-
-    // Initialize UI elements FIRST before calling createLevel
+    this.eKey = this.input.keyboard!.addKey('E')
+    this.tKey = this.input.keyboard!.addKey('T').on('down', () => {
+      console.log(this.doors)
+    })
+    
     this.infoText = this.add.text(10, 10, '', {
       font: '16px Arial',
       color: '#ffffff',
@@ -62,7 +98,6 @@ export class Game extends Phaser.Scene {
       padding: { x: 5, y: 5 }
     }).setScrollFactor(0).setDepth(100)
 
-    // Add instructions text
     this.add.text(10, 70, 'Press R to reset game', {
       font: '14px Arial',
       color: '#ffffff',
@@ -70,74 +105,138 @@ export class Game extends Phaser.Scene {
       padding: { x: 5, y: 5 }
     }).setScrollFactor(0).setDepth(100)
 
-    this.coordsText = this.add.text(10, 100, '', {
+    this.debugText = this.add.text(10, 300, '', {
       font: '16px Arial',
       color: '#ffffff',
       backgroundColor: '#000000',
-      padding: { x: 5, y: 5 }
+      padding: { x: 5, y: 5 },
     }).setScrollFactor(0).setDepth(100)
 
-    // Set VERY large world bounds to ensure no boundaries are hit
-    // This is a critical fix - we're setting the boundaries much larger than needed
-    // to ensure the player never hits an invisible wall
-    this.physics.world.setBounds(-2000, -2000, 4000, 4000)
-    console.log("Set world bounds: 0, -2000, 800, 4000")
+    this.physics.world.setBounds(-8000, -8000, 9000, 9000)
 
-    // Now create the level
     try {
       this.createLevel(this.currentLevel, 0, 0) // Initial room at y=0
     } catch (error) {
       console.error('Error creating level:', error)
       this.infoText.setText('Error loading map!')
     }
+    this.setupAnimations()
   }
 
-  // Reset game with proper world boundary reset
-  resetGame() {
-    // Reset game state when restarting
-    this.isDead = false
-    this.playerScore = 0
-    this.scoreText.setText(`Score: ${this.playerScore}`)
+  resetGame() {    
+    // Stop all timers and animations immediately
+    const debug = this.isDebugMode
+    const fractions = this.isFractionsMode
 
-    // Clear all existing rooms
-    this.clearAllRooms()
-
-    // Reset room tracking
-    this.currentRoomY = 0
-    this.currentRoomX = 0
+    this.time.removeAllEvents()
+    this.tweens.killAll()
+    
+    // Cancel all input events
+    this.input.keyboard!.enabled = false
+    this.scene.restart()
+    
+    this.events.once('create', () => {
+      // Reset score and related UI
+      this.playerScore = 0
+      if (this.scoreText) {
+        this.scoreText.setText(`Score: ${this.playerScore}`)
+      }
+      
+      this.isDead = false
+      
+      if (this.infoText) {
+        this.infoText.setText('Game reset! Approach a door to continue.')
+      }
+      
+      this.input.keyboard!.enabled = true
+      this.setDebugMode(debug)
+      this.setFractions(fractions)
+    })
+  }
+  
+  shutdown() {
+    this.doors.forEach(door => {
+      if (door.sprite) {
+        door.sprite.removeAllListeners()
+        door.sprite.destroy()
+      }
+      if (door.text) {
+        door.text.destroy()
+      }
+    })
+    
+    this.doors = []
+    this.activeDoor = null
+    this.doorSelectionActive = false
+    
+    this.physics.world.colliders.destroy()
+    
     this.rooms = []
-
-    // Reset to start level
-    this.currentLevel = 'start'
-
-    // Set large world bounds again to be safe
-    this.physics.world.setBounds(-2000, -2000, 4000, 4000)
-
-    // Create the level
-    this.createLevel(this.currentLevel, 0, 0)
-
-    // Show reset message
-    this.infoText.setText('Game reset! Approach a door to continue.')
   }
+
+// Complete scene cleanup
+performThoroughCleanup() {
+  this.doors.forEach(door => {
+    if (door.sprite) {
+      door.sprite.removeAllListeners() // Remove all event listeners
+      door.sprite.destroy(true) // Force immediate destruction
+    }
+    if (door.text) {
+      door.text.destroy(true) // Force immediate destruction
+    }
+  })
+  this.doors = []
+
+  this.physics.world.colliders.destroy()
+  this.physics.world.bodies.getArray().forEach(body => {
+    if (body.gameObject && body.gameObject !== this.player) {
+      body.gameObject.destroy()
+    }
+  })
+
+  this.children.list.forEach(child => {
+    if (child instanceof Phaser.GameObjects.Sprite && 
+        child.alpha === 0 && 
+        child.texture.key === 'door') {
+      child.destroy()
+    }
+  })
+
+  this.children.list.forEach(child => {
+    if (child instanceof Phaser.Tilemaps.TilemapLayer) {
+      child.destroy()
+    }
+  })
+
+  this.children.list.forEach(child => {
+    if (child instanceof Phaser.GameObjects.Sprite && 
+        child !== this.player && 
+        child.anims) {
+      child.destroy()
+    }
+  })
+  
+  if (this.player) {
+    this.player.destroy()
+    this.player = null as any
+  }
+}
+
   clearAllRooms() {
-    // Destroy all doors and other room elements
     this.doors.forEach(door => {
       if (door.sprite) door.sprite.destroy()
       if (door.text) door.text.destroy()
     })
     this.doors = []
 
-    // Destroy all colliders
     this.physics.world.colliders.destroy()
 
-    // Destroy all layers from previous rooms
     this.children.list.forEach(child => {
       if (child instanceof Phaser.Tilemaps.TilemapLayer) {
         child.destroy()
       }
     })
 
-    // Reset door selection state
     this.doorSelectionActive = false
     this.activeDoor = null
   }
@@ -145,10 +244,8 @@ export class Game extends Phaser.Scene {
 
   createLevel(levelKey: string, yPosition: number, xPosition: number) {
     try {
-      // Load the tilemap for the current level
       const map = this.make.tilemap({ key: this.levelMaps[levelKey] })
 
-      // Track this room
       this.rooms.push({
         level: levelKey,
         y: yPosition,
@@ -157,38 +254,25 @@ export class Game extends Phaser.Scene {
       this.currentRoomY = yPosition
       this.currentRoomX = xPosition
 
-      // Get the tilesets that are ACTUALLY used in this map
       const tilesets: Phaser.Tilemaps.Tileset[] = []
 
       // Check which tilesets are needed for this specific map
-      if (map.tilesets.find(tileset => tileset.name === 'A4')) {
+      if (map.tilesets.find(tileset => tileset.name === 'A4'))
         tilesets.push(map.addTilesetImage('A4', 'A4')!)
-      }
-
-      if (map.tilesets.find(tileset => tileset.name === 'A5')) {
+      if (map.tilesets.find(tileset => tileset.name === 'A5'))
         tilesets.push(map.addTilesetImage('A5', 'A5')!)
-      }
-
-      if (map.tilesets.find(tileset => tileset.name === 'Inside_B')) {
+      if (map.tilesets.find(tileset => tileset.name === 'Inside_B')) 
         tilesets.push(map.addTilesetImage('Inside_B', 'Inside_B')!)
-      }
-
-      if (map.tilesets.find(tileset => tileset.name === 'Inside_C')) {
+      if (map.tilesets.find(tileset => tileset.name === 'Inside_C')) 
         tilesets.push(map.addTilesetImage('Inside_C', 'Inside_C')!)
-      }
-
-      if (map.tilesets.find(tileset => tileset.name === 'Inside_D')) {
+      if (map.tilesets.find(tileset => tileset.name === 'Inside_D'))
         tilesets.push(map.addTilesetImage('Inside_D', 'Inside_D')!)
-      }
-
-      if (map.tilesets.find(tileset => tileset.name === 'Inside_E')) {
+      if (map.tilesets.find(tileset => tileset.name === 'Inside_E'))
         tilesets.push(map.addTilesetImage('Inside_E', 'Inside_E')!)
-      }
-
-      // Check if layers exist before creating them
+      
       let groundLayer, wallsLayer, objectsLayer
 
-      // Set appropriate depth values for each layer
+      // Set appropriate depth values for each layer to ensure proper rendering order
       if (map.layers.find(layer => layer.name === 'Ground')) {
         groundLayer = map.createLayer('Ground', tilesets, xPosition, yPosition)
         // Ground layer at the bottom
@@ -209,22 +293,17 @@ export class Game extends Phaser.Scene {
         objectsLayer?.setDepth(3)
       }
 
-      // Only create player for the first room
-      if (this.rooms.length === 1) {
+      // Create player if it's the first room OR if player doesn't exist
+      if (this.rooms.length === 1 || !this.player) {
         this.setupPlayer(levelKey, yPosition)
       }
 
-      // IMPORTANT: This section only adds colliders if this.player exists
       // During room transitions, this.player may be temporarily null to skip this section
       if (this.player) {
-        // Add collisions with walls and objects
-        if (wallsLayer) {
+        if (wallsLayer)
           this.physics.add.collider(this.player, wallsLayer)
-        }
-
-        if (objectsLayer) {
+        if (objectsLayer)
           this.physics.add.collider(this.player, objectsLayer)
-        }
       }
 
       // Setup doors based on current level
@@ -233,7 +312,6 @@ export class Game extends Phaser.Scene {
         const doorConfigs = this.generateDoors(levelKey)
         this.setupDoors(doorConfigs, yPosition)
 
-        // Update info text
         this.infoText.setText('Approach a door to see your options')
       }
       else if (levelKey === 'failure') {
@@ -246,34 +324,27 @@ export class Game extends Phaser.Scene {
       this.infoText.setText(`Error: Could not load the ${levelKey} map`)
     }
   }
-  clearDoors() {
 
-  // Convert interactive doors to static decorative sprites
-  this.doors.forEach(door => {
-    if (door.sprite) {
-      // Remove interactivity but keep the sprite
-      door.sprite.disableInteractive();
-      
-      // Ensure door is in closed state
-      door.sprite.anims.play('door-closed');
-      
-      // Reset any highlighting
-      door.sprite.setTint(0xffffff);
-      
-      // Remove associated text displays
-      if (door.text) {
-        door.text.destroy();
+  clearDoors() {
+    // Destroy all door-related objects
+    this.doors.forEach(door => {
+      if (door.sprite) {
+        door.sprite.removeAllListeners()
+        door.sprite.destroy()
       }
-    }
-  });
+      
+      if (door.text)
+        door.text.destroy()
+    })
   
-  // Clear the doors array - doors are still visible but not tracked for interaction
-  this.doors = [];
+    // Clear the doors array
+    this.doors = []
   
-  // Reset door selection state
-  this.doorSelectionActive = false;
-  this.activeDoor = null;
+    // Reset door selection state
+    this.doorSelectionActive = false
+    this.activeDoor = null
   }
+
   setupPlayer(levelKey: string, yPosition: number = 0) {
     // Get player position based on level
     let playerX = 300
@@ -285,16 +356,13 @@ export class Game extends Phaser.Scene {
     }
 
     // If player exists, destroy it to prevent issues
-    if (this.player) {
+    if (this.player)
       this.player.destroy()
-    }
 
     // Create a fresh player sprite
     this.player = this.physics.add.sprite(playerX, playerY, 'character', 'Idle_Down-0.png')
     this.player.setScale(2)
 
-    // IMPORTANT: Set player's depth to ensure it renders above the room tiles
-    // The higher the number, the more "on top" the sprite will be
     this.player.setDepth(10)
 
     // Set player's hitbox size to be just at the feet
@@ -313,10 +381,8 @@ export class Game extends Phaser.Scene {
     // Always setup animations for the new player instance
     this.setupAnimations()
 
-    // Start with idle animation
     this.player.anims.play('idle', true)
 
-    // Setup camera in a separate method so it can be called independently
     this.setupCamera()
   }
 
@@ -324,63 +390,107 @@ export class Game extends Phaser.Scene {
     // Camera setup - follows player through all rooms
     this.cameras.main.startFollow(this.player)
     this.cameras.main.setDeadzone(20, 20)
-    this.cameras.main.setLerp(0.1, 0.1)
-
-    // Calculate room bounds to ensure camera knows about all rooms
-    let lowestY = 0
-    let highestY = 0
-
-    this.rooms.forEach(room => {
-      if (room.y < lowestY) lowestY = room.y
-      if (room.y > highestY) highestY = room.y
-    })
+    this.cameras.main.setLerp(0.05, 0.05)
   }
+
 
   generateDoors(levelKey: string) {
-    // Base positions for doors in the start and success levels
-    const xPosition = this.currentRoomX
-    const yPosition = this.currentRoomY + 54
-    if (levelKey === 'start') {
-      // First level doors - fixed chances/rewards
-      return [
-        { id: 'doorLeft', x: xPosition + 56, y: yPosition, chance: 70, reward: 10 },
-        { id: 'doorRight', x: xPosition + 516, y: yPosition, chance: 70, reward: 10 }
-      ]
-    } else {
-      // Success level doors - increase difficulty with each success
-      const doorCount = 2 // Add a third door at higher scores
+    const fractionOptions = this.generateFractionOptions()
       const doors: DoorData[] = []
 
-      // Generate doors with varying chances and rewards
-      for (let i = 0; i < doorCount; i++) {
-        // Make doors progressively harder as score increases
-        const difficultyFactor = Math.min(0.5, this.playerScore / 200) // Max 50% reduction
-        const baseChance = 70 - (this.playerScore / 5) // Decrease by 1% per 5 points
-        const chance = Math.max(20, Math.floor(baseChance * (1 - difficultyFactor))) // Min 20% chance
+      // Create two doors with different difficulties
+      const doorOptions: Omit<DoorData, 'x' | 'id'>[] = []
 
-        // Higher reward for harder doors
-        const reward = Math.floor(10 + (100 - chance) / 2)
+      // Create an easier door option
+      const easyFractionIndex = Math.min(
+        Math.floor(this.playerScore / 50),
+        fractionOptions.length - (Math.random() > 0.5 ? 3 : 1)
+      )
+      const easyFraction = fractionOptions[easyFractionIndex]
+      const easyChance = Math.floor((easyFraction!.numerator / easyFraction!.denominator) * 100)
+      const easyReward = Math.floor(10 + (100 - easyChance) * 0.75)
 
-        // Position doors evenly
-        const x = (i === 0) ? this.currentRoomX + 56 : this.currentRoomX + 516
+      // Create a harder door option
+      const hardFractionIndex = Math.min(
+        easyFractionIndex + (Math.random() > 0.5 ? 1 : 3),
+        fractionOptions.length - 1
+      )
+      const hardFraction = fractionOptions[hardFractionIndex]
+      const hardChance = Math.floor((hardFraction!.numerator / hardFraction!.denominator) * 100)
+      const hardReward = Math.floor(10 + (100 - hardChance) * 0.75)
 
-        doors.push({
-          id: `door${i}`,
-          x,
-          y: 54,
-          chance,
-          reward
-        })
-        console.log(`new door: ${x}, ${yPosition}, ${chance}, ${reward}`)
-        
-      }
+      doorOptions.push({
+        y: 54,
+        numerator: easyFraction!.numerator,
+        denominator: easyFraction!.denominator,
+        chance: easyChance,
+        reward: easyReward
+      })
+
+      doorOptions.push({
+        y: 54,
+        numerator: hardFraction!.numerator,
+        denominator: hardFraction!.denominator,
+        chance: hardChance,
+        reward: hardReward
+      })
+
+      // Randomly determine which door goes on the left
+      const shouldSwap = Math.random() > 0.5
+
+      // Create the doors with positions
+      const leftDoorOption = shouldSwap ? doorOptions[1] : doorOptions[0]
+      const rightDoorOption = shouldSwap ? doorOptions[0] : doorOptions[1]
+
+      // Add to the doors array
+      doors.push({
+        id: 'doorLeft',
+        x: this.currentRoomX + 56,
+        ...leftDoorOption
+      })
+
+      doors.push({
+        id: 'doorRight',
+        x: this.currentRoomX + 516,
+        ...rightDoorOption
+      })
 
       return doors
-    }
+    
   }
 
+  generateFractionOptions() {
+    return [
+      { numerator: 7, denominator: 8 },  // 87.5%
+      { numerator: 4, denominator: 5 },  // 80%
+      { numerator: 7, denominator: 9 },  // 77.8%
+      { numerator: 3, denominator: 4 },  // 75%
+      { numerator: 5, denominator: 7 },  // 71%
+      { numerator: 2, denominator: 3 },  // 67%
+      { numerator: 7, denominator: 11 }, // 63.6%
+      { numerator: 5, denominator: 8 },  // 62.5%
+      { numerator: 3, denominator: 5 },  // 60%
+      { numerator: 7, denominator: 12 }, // 58%
+      { numerator: 4, denominator: 7 },  // 57%
+      { numerator: 5, denominator: 9 },  // 56%
+      { numerator: 6, denominator: 11 }, // 54%
+      { numerator: 1, denominator: 2 },  // 50%
+      { numerator: 6, denominator: 13 }, // 46%
+      { numerator: 5, denominator: 11 }, // 45%
+      { numerator: 4, denominator: 9 },  // 44%
+      { numerator: 2, denominator: 5 },  // 40%
+      { numerator: 3, denominator: 8 },  // 37.5%
+      { numerator: 4, denominator: 11 }, // 36%
+      { numerator: 1, denominator: 3 },  // 33%
+      { numerator: 1, denominator: 4 },  // 25%
+      { numerator: 3, denominator: 13 }, // 23%
+      { numerator: 1, denominator: 5 },  // 20%
+      { numerator: 1, denominator: 6 },  // 17%
+      { numerator: 1, denominator: 8 },  // 12.5%
+      { numerator: 1, denominator: 10 }  // 10%
+    ]
+  }
 
-  // Update setupDoors to ensure doors have proper depth
   setupDoors(doorConfigs: DoorData[], yPosition: number = 0) {
     doorConfigs.forEach(doorConfig => {
       try {
@@ -394,15 +504,23 @@ export class Game extends Phaser.Scene {
 
         // IMPORTANT: Set door depth to be equal to or slightly below player
         doorSprite.setDepth(9)
+        if (doorSprite.anims) {
+          doorSprite.anims.play('door-closed')
+        } else {
+          console.log('Warning: Door animations not available for sprite')
+          // Make sure door appears in closed state (use frame directly if anims not available)
+          doorSprite.setFrame('Door1-3.png')
+        }
 
-        doorSprite.anims.play('door-closed')
-
-        // Text to display door stats - position above door
+        // Text to display door stats - position above door with fraction
+        const text = this.isFractionsMode ?
+          `${doorConfig.numerator}/${doorConfig.denominator}\n${doorConfig.reward} points` :
+          `${doorConfig.chance}%\n${doorConfig.reward} points`
         const doorText = this.add.text(
           doorConfig.x,
           doorY - 40,
-          `${doorConfig.chance}%\n${doorConfig.reward} coins`,
-          { font: '12px Arial', align: 'center', color: '#ffffff', stroke: '#000000', strokeThickness: 3 }
+          text,
+          { font: '14px Arial', align: 'center', color: '#ffffff', stroke: '#000000', strokeThickness: 3 }
         ).setOrigin(0.5)
 
         // Text should be above everything
@@ -452,17 +570,22 @@ export class Game extends Phaser.Scene {
       this.doors.forEach(d => {
         if (d.sprite) {
           d.sprite.setTint(0xffffff)
-          // d.sprite.anims.play('door-closed')
         }
       })
 
       this.activeDoor = door
-      this.infoText.setText(`Press E to use this door (${door.chance}% chance, ${door.reward} coins)`)
-
+      // Update info text to show fraction
+      const text = this.isFractionsMode ?
+        `${door.numerator}/${door.denominator} chance, ${door.reward} points` :
+        `${door.chance}% chance, ${door.reward} points`
+      this.infoText.setText('Press E to choose - ' + text)
+      
       // Highlight the active door
       if (door.sprite) {
         door.sprite.setTint(0xffff00)
-        door.sprite.anims.play('door-open')
+        if (door.sprite.anims) {
+          door.sprite.anims.play('door-open')
+        }
       }
     }
   }
@@ -473,9 +596,9 @@ export class Game extends Phaser.Scene {
     // Set flag to prevent multiple selections
     this.doorSelectionActive = true
 
-    // Calculate if the player succeeds based on door chance
-    const roll = Phaser.Math.Between(1, 100)
-    const success = roll <= door.chance
+    // Calculate if the player succeeds based on fraction
+    const roll = Phaser.Math.Between(1, door.denominator)
+    const success = roll <= door.numerator
 
     // Update player score if successful
     if (success) {
@@ -483,80 +606,99 @@ export class Game extends Phaser.Scene {
       this.scoreText.setText(`Score: ${this.playerScore}`)
     }
 
-    // Show result message
-    this.infoText.setText(success ?
-      `Success! You rolled ${roll}, needed ${door.chance} or less. Earned ${door.reward} coins.` :
-      `Failed! You rolled ${roll}, needed ${door.chance} or less.`)
+    // Show result message with fraction details
+    let text = ''
+    if (this.isFractionsMode) {
+      text = success ?
+        `Success! You rolled ${roll} of ${door.denominator}, needed ${door.numerator} or less. Earned ${door.reward} points.` :
+        `Failed! You rolled ${roll} of ${door.denominator}, needed ${door.numerator} or less.`
+    } else {
+      const rollPercent = Math.floor((roll / door.denominator) * 100)
+      const minPercent = Math.floor((door.numerator / door.denominator) * 100)
+      text = success ?
+        `Success! You rolled ${rollPercent}%, needed ${minPercent}% or more. Earned ${door.reward} points.` :
+        `Failed! You rolled ${rollPercent}%, needed ${minPercent}% or more.`
+    }
+    this.infoText.setText(text)
 
     // Determine the next level
     const nextLevel = success ? 'success' : 'failure'
+    const isLeftDoor = door.x - this.currentRoomX < 100
 
     // Create the new room above the current one
     const nextRoomY = this.currentRoomY - 256 // 256 units above current room
-    const nextRoomX = this.currentRoomX - (success ? 288 : 128) +54 // Move left if success
+    const nextRoomX = this.currentRoomX - (success ? 288 : 128) + (isLeftDoor ? 54 : 516) // Move left if success
 
     // Initiate room transition after a delay
     this.time.delayedCall(1000, () => {
+      if (this.activeDoor && this.activeDoor.sprite && this.activeDoor.sprite.anims) {
+        this.activeDoor.sprite.anims.stop()
+      }
       this.transitToNewRoom(nextLevel, nextRoomY, nextRoomX)
     })
   }
 
+transitToNewRoom(nextLevel: string, nextRoomY: number, nextRoomX: number) {
+  // First, completely destroy all colliders in the scene
+  this.physics.world.colliders.destroy()
 
-  transitToNewRoom(nextLevel: string, nextRoomY: number, nextRoomX: number) {
-    // First, completely destroy all colliders in the scene
-    this.physics.world.colliders.destroy()
+  // Clear all doors and other room elements
+  this.clearDoors()
 
-    // Clear all doors and other room elements
-    this.clearDoors()
+  const xOffset = nextLevel === 'success' ? 288 : 128
+  
+  // Store player reference
+  const playerRef = this.player
+  const playerX = nextRoomX + xOffset
 
-    const xOffset = nextLevel === 'success' ? 288 : 128
-    // Store player reference
-    const playerRef = this.player
-    const playerX = nextRoomX + xOffset
+  // Save the player's current depth
+  const playerDepth = playerRef.depth
 
-    // Save the player's current depth
-    const playerDepth = playerRef.depth
+  // Calculate target Y position
+  const targetY = nextRoomY + (nextLevel === 'success' ? 130 : 150)
 
-    // Calculate target Y position
-    const targetY = nextRoomY + 115
+  // Create the new level
+  this.createLevel(nextLevel, nextRoomY, nextRoomX)
 
-    console.log(`Planning teleport to y=${targetY} (room at y=${nextRoomY})`)
+  
+  playerRef.setPosition(playerX, targetY)
 
-    // Create the new level
-    this.createLevel(nextLevel, nextRoomY, nextRoomX)
+  if (nextLevel === 'failure') {
+    // Game over state
+    this.isDead = true
+    this.scoreText.setText(`Score: ${this.playerScore}`)
+    this.infoText.setText('You have failed! Your score has been reset.')
 
-    // Immediate teleport
-    playerRef.setPosition(playerX, targetY)
+    this.player.anims.play('death')
 
-    if (nextLevel === 'failure') {
-      // Reset player score on failure
-      this.isDead = true
-      this.playerScore = 0
-      this.scoreText.setText(`Score: ${this.playerScore}`)
-      this.infoText.setText('You have failed! Your score has been reset.')
-
-      this.player.anims.play('death')
-      this.time.delayedCall(3000, () => {
-        this.resetGame()
-      })
-    }
-
-    // Critical: Update the physics body position
-    if (playerRef.body) {
-      playerRef.body.reset(playerX, targetY)
-    }
-
-    // IMPORTANT: Ensure player depth is maintained after teleport
-    playerRef.setDepth(playerDepth)
-
-    console.log(`Teleported player to x=${playerX}, y=${targetY}, depth=${playerRef.depth}`)
-
-    // Reset door selection flag
-    this.doorSelectionActive = false
-
-    // Update camera
-    this.setupCamera()
+    this.time.delayedCall(2000, () => {
+    this.add.text(400, 300, `You died :(\nYour score was: ${this.playerScore}\nPress R to restart!`, {
+      align: 'center',
+      font: '32px Arial',
+      color: '#080808',
+      backgroundColor: '#f6339a',
+      resolution: 50,
+      padding: { x: 5, y: 5 }
+    }).setScrollFactor(0).setDepth(100).setOrigin(0.5, 0.5)
+    })
+    
+    return // Exit early to prevent further processing
   }
+
+  // Critical: Update the physics body position
+  if (playerRef.body) {
+    playerRef.body.reset(playerX, targetY)
+  }
+
+  // Ensure player depth is maintained after teleport
+  playerRef.setDepth(playerDepth)
+
+  // Reset door selection flag
+  this.doorSelectionActive = false
+
+  // Update camera
+  // this.setupCamera()
+}
 
   setupAnimations() {
     this.anims.create({
@@ -618,7 +760,10 @@ export class Game extends Phaser.Scene {
   }
 
   update(t: number, dt: number) {
-    if (!this.cursors || !this.player) {
+    debugDraw(this.children.list.find(child => child instanceof Phaser.Tilemaps.TilemapLayer) as Phaser.Tilemaps.TilemapLayer, this)
+    
+    // Add more thorough null checks to prevent errors
+    if (!this.cursors || !this.player || !this.player.body) {
       return
     }
 
@@ -641,8 +786,13 @@ export class Game extends Phaser.Scene {
         stillNearDoor = dist < this.interactionDistance
 
         if (!stillNearDoor) {
-          door.sprite.setTint(0xffffff)
-          door.sprite.anims.play('door-closed')
+          if (door.sprite) {
+            door.sprite.setTint(0xffffff)
+            // Add null check here for door.sprite.anims
+            if (door.sprite.anims) {
+              door.sprite.anims.play('door-closed')
+            }
+          }
           this.activeDoor = null
           this.infoText.setText('')
         }
@@ -650,7 +800,7 @@ export class Game extends Phaser.Scene {
     }
 
     // Handle movement if not in door selection
-    if (!this.doorSelectionActive) {
+    if (!this.doorSelectionActive && !this.isDead) {
       if (this.cursors.left!.isDown) {
         this.player.setVelocityX(-speed)
         this.player.anims.play('walk-left', true)
@@ -672,16 +822,29 @@ export class Game extends Phaser.Scene {
       }
 
       // Play idle animation if not moving
-      if (this.player.body!.velocity.x === 0 && this.player.body!.velocity.y === 0 && !this.isDead)  {
+      if (this.player.body!.velocity.x === 0 && this.player.body!.velocity.y === 0 && !this.isDead) {
         this.player.anims.play('idle', true)
       }
 
       // Door interaction with E key
-      const eKey = this.input.keyboard!.addKey('E')
-      if (Phaser.Input.Keyboard.JustDown(eKey) && this.activeDoor) {
+      if (Phaser.Input.Keyboard.JustDown(this.eKey) && this.activeDoor) {
         this.selectDoor(this.activeDoor)
       }
-      this.coordsText.setText(`x: ${this.player.x.toFixed(2)}, y: ${this.player.y.toFixed(2)}`)
+
+      // Fix this line with proper null checking
+      if (this.physics.world && this.physics.world.debugGraphic) {
+        this.isDebugMode = this.physics.world.debugGraphic.visible
+      }
+    
+      // Make coordinate text only visible in debug mode
+      if (this.debugText) {
+        this.debugText.visible = this.isDebugMode
+        // Add null check before setting text - important fix!
+        this.fps = Math.round(1000 / dt)
+        this.debugText.setText(
+          `x: ${this.player.x.toFixed(2)}, y: ${this.player.y.toFixed(2)}\nFPS: ${this.fps}`
+        )
+      }
     }
   }
 }

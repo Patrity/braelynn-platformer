@@ -38,7 +38,7 @@ const initPhaser = async () => {
       physics: {
         default: 'arcade',
         arcade: {
-          debug: false
+          debug: true,
         }
       },
       scene: [Preloader, Game],
